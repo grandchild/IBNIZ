@@ -1,19 +1,24 @@
 #ifdef __APPLE__
-#include <SDL.h>
+#include <SDL2.h>
 #else
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 #endif
 #define IBNIZ_MAIN
 #include "ibniz.h"
 #include "texts.i"
 
+
+typedef uint32_t pixel32_t;
+
 struct
 {
-  SDL_Surface*s;
-  SDL_Overlay*o;
+  SDL_Window* w;
+  SDL_Renderer* r;
+  SDL_Texture* t;
+  void* pixels;
   SDL_AudioSpec as;
   int winsz,xmargin,ymargin;
-} sdl;
+} sdl, sdled;
 
 struct
 {
@@ -118,7 +123,7 @@ void drawTextBuffer()
     }
     if(y>=0 && y<28)
     {
-      drawChar8x8( ((uint8_t*)(sdl.o->pixels[0]))+x*16+y*WIDTH*16,
+      drawChar8x8( ((uint8_t*)(sdl.pixels))+x*16+y*WIDTH*16,
         font+(a>=32?a-32:0)*8,fg,bg);
     }
     x++;
@@ -141,7 +146,7 @@ void drawString(char*s,int x,int y)
   while(*s)
   {
     int a=*s;
-    drawChar8x8( ((uint8_t*)(sdl.o->pixels[0]))+x*16+y*WIDTH*16,
+    drawChar8x8( ((uint8_t*)(sdl.pixels))+x*16+y*WIDTH*16,
       font+(a>=32?a-32:0)*8,fg,bg);
     s++;
     x++;
@@ -199,19 +204,27 @@ void drawStatusPanel()
 
 void showyuv()
 {
+  // TODO port to 2.0
   SDL_Rect area={sdl.xmargin,sdl.ymargin,sdl.winsz,sdl.winsz};
-  SDL_DisplayYUVOverlay(sdl.o,&area);
+  // SDL_DisplayYUVOverlay(sdl.o,&area);
+  SDL_RenderClear(sdl.r);
+  SDL_RenderCopy(sdl.r, sdl.t, NULL, &area);
+  SDL_RenderPresent(sdl.r);
 }
 
 void updatescreen()
 {
+  // TODO port to 2.0 (wrap in locks, remove showyuv()?)
   int x,y;
-  uint32_t*s=vm.mem+0xE0000+(vm.visiblepage<<16);
+  pixel32_t*s=vm.mem+0xE0000+(vm.visiblepage<<16);
 
+  int pitch;
+  // void* pixels = (void*)sdl.pixels;
+  SDL_LockTexture(sdl.t, NULL, &sdl.pixels, &pitch);
   for(y=0;y<256;y++)
   for(x=0;x<128;x++)
   {
-    uint32_t b=s[0],a=s[1];
+    pixel32_t b=s[0],a=s[1];
 
     // little_endian, TODO: support big-endian
     a=(a&0xff000000)|
@@ -225,7 +238,7 @@ void updatescreen()
       (((a>>8)&0xff)<<16) |
       (((a)&0xff)<<24);
 #endif
-    ((uint32_t*)(sdl.o->pixels[0]))[(WIDTH/2)*y+x]=a;
+    ((pixel32_t*)(sdl.pixels))[(WIDTH/2)*y+x]=a;
     s+=2;
   }
 
@@ -234,6 +247,8 @@ void updatescreen()
     drawTextBuffer();
     drawStatusPanel();
   }
+  //SDL_UpdateTexture(sdl.t, NULL, sdl.pixels, WIDTH*sizeof(pixel32_t));
+  SDL_UnlockTexture(sdl.t);
   showyuv();
 }
 
@@ -287,15 +302,20 @@ void waitfortimechange()
 void getkeystates()
 {
   int m=SDL_GetModState();
-  uint8_t*k=SDL_GetKeyState(NULL);
-  m=((m&KMOD_CTRL)?64:0)|((m&(KMOD_ALT|KMOD_META))?32:0)|((m&KMOD_SHIFT)?16:0)
-    |(k[SDLK_UP]?8:0)|(k[SDLK_DOWN]?4:0)|(k[SDLK_LEFT]?2:0)|(k[SDLK_RIGHT]?1:0);
+  const uint8_t*k=SDL_GetKeyboardState(NULL);
+  m=((m&KMOD_CTRL)?64:0)
+    |((m&(KMOD_ALT|KMOD_GUI))?32:0)
+    |((m&KMOD_SHIFT)?16:0)
+    |(k[SDL_SCANCODE_UP]?8:0)
+    |(k[SDL_SCANCODE_DOWN]?4:0)
+    |(k[SDL_SCANCODE_LEFT]?2:0)
+    |(k[SDL_SCANCODE_RIGHT]?1:0);
   vm.userinput=(vm.userinput&0x80FFFFFF)|(m<<24);
 }
 
 /*** audio-related ***/
 
-void pauseaudio(s)
+void pauseaudio(int s)
 {
   if(!ui.opt_nonrealtime)
     SDL_PauseAudio(s);
@@ -388,7 +408,7 @@ void pollplaybackevent(SDL_Event*e)
 {
   static int next=0,nextkey=0,nextasc=0,nextmod=0;
   int now=getticks();
-  e->type=SDL_NOEVENT;
+  e->type=0; //SDL_NOEVENT unavailable in SDL2
   if(now<next)
     return;
   if(nextkey)
@@ -396,7 +416,7 @@ void pollplaybackevent(SDL_Event*e)
     e->type=SDL_KEYDOWN;
     e->key.keysym.sym=nextkey;
     e->key.keysym.mod=nextmod;
-    e->key.keysym.unicode=nextasc;
+    e->text.text[0]=(char)nextasc;
   }
   if(!feof(stdin))
   {
@@ -426,7 +446,7 @@ void dumpmediaframe()
     for(x=0;x<32*2;x++) putchar(0);
     for(x=0;x<256;x++)
     {
-      char*oo=(char*)(sdl.o->pixels[0])+(y>>1)*256*2+x*2;
+      char*oo=(char*)(sdl.pixels)+(y>>1)*256*2+x*2;
       putchar(oo[0]);
       putchar(oo[0]);
     }
@@ -438,7 +458,7 @@ void dumpmediaframe()
     for(x=0;x<32;x++) putchar(0x80);
     for(x=0;x<256;x++)
     {
-      char*oo=(char*)(sdl.o->pixels[0])+y*256*2+(x>>1)*4;
+      char*oo=(char*)(sdl.pixels)+y*256*2+(x>>1)*4;
       putchar(oo[1]);
     }
     for(x=0;x<32;x++) putchar(0x80);
@@ -449,7 +469,7 @@ void dumpmediaframe()
     for(x=0;x<32;x++) putchar(0x80);
     for(x=0;x<256;x++)
     {
-      char*oo=(char*)(sdl.o->pixels[0])+y*256*2+(x>>1)*4;
+      char*oo=(char*)(sdl.pixels)+y*256*2+(x>>1)*4;
       putchar(oo[3]);
     }
     for(x=0;x<32;x++) putchar(0x80);
@@ -777,29 +797,23 @@ void interactivemode(char*codetoload)
   uint32_t prevtimevalue=gettimevalue();
   SDL_Event e;
 
-  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY,10);
-  SDL_EnableUNICODE(1);
   ed.textbuffer=malloc(EDITBUFSZ*sizeof(char));
   strncpy(ed.textbuffer,codetoload,EDITBUFSZ-1);
   ed_unselect();
   ed.firsty=0;
   ed.cursor=ed.textbuffer;
   ed.readonly=0;
-  
+
   ed_parallel.cursor=
   ed_parallel.selectstart=
   ed_parallel.selectend=
   ed_parallel.textbuffer=helpscreen;
   ed_parallel.readonly=1;
 
-#ifdef X11
-  SDL_EventState(SDL_SYSWMEVENT,SDL_ENABLE);
-#endif
-  
   for(;;)
   {
     uint32_t t = gettimevalue();
-    if(prevtimevalue!=t || e.type!=SDL_NOEVENT)
+    if(prevtimevalue!=t || e.type!=0/*SDL_NOEVENT*/)
     {
       updatescreen();
       vm.specialcontextstep=3;
@@ -831,21 +845,21 @@ void interactivemode(char*codetoload)
         SDL_WaitEvent(&e);
       else
       {
-        e.type=SDL_NOEVENT;
+        e.type=0/*SDL_NOEVENT*/;
         SDL_PollEvent(&e);
-        if(e.type==SDL_NOEVENT)
+        if(e.type==0/*SDL_NOEVENT*/)
           pollplaybackevent(&e);
-        if(e.type==SDL_NOEVENT && ui.opt_nonrealtime)
+        if(e.type==0/*SDL_NOEVENT*/ && ui.opt_nonrealtime)
           nrtframestep();
       }
     }
     else
     {
-      e.type=SDL_NOEVENT;
+      e.type=0/*SDL_NOEVENT*/;
       SDL_PollEvent(&e);
-      if(ui.opt_playback && e.type==SDL_NOEVENT)
+      if(ui.opt_playback && e.type==0/*SDL_NOEVENT*/)
         pollplaybackevent(&e);
-      if(e.type==SDL_NOEVENT)
+      if(e.type==0/*SDL_NOEVENT*/)
       {
         if(codechanged) 
         {
@@ -881,10 +895,10 @@ void interactivemode(char*codetoload)
       {
         static int last=0;
         int now=getticks();
-        if(!sym && e.key.keysym.unicode)
-             sym=e.key.keysym.unicode;
+        if(!sym && e.text.text[0])
+             sym=e.text.text[0];
         printf("%d %d %d %d\n",now-last,sym,
-          e.key.keysym.unicode,mod);
+          e.text.text[0],mod);
         last=now;
       }
 
@@ -1029,13 +1043,18 @@ void interactivemode(char*codetoload)
           ui.benchmark_mode^=1;
         }
         else
+        if(sym==SDLK_RETURN || sym==SDLK_RETURN2)
         {
-          if(e.key.keysym.unicode)
-          {
-            ed_char(e.key.keysym.unicode);
-            codechanged=1;
-          }
+          ed_char(10);
         }
+      }
+    }
+    else if(e.type==SDL_TEXTINPUT)
+    {
+      if(e.text.text[0])
+      {
+        ed_char(e.text.text[0]);
+        codechanged=1;
       }
     }
     else if(e.type==SDL_KEYUP)
@@ -1057,26 +1076,13 @@ void interactivemode(char*codetoload)
     {
       vm.userinput&=0x7FFFFFFF;
     }
-    else if(e.type==SDL_VIDEORESIZE)
+    else if(e.type==SDL_WINDOWEVENT && e.window.event==SDL_WINDOWEVENT_RESIZED)
     {
-      sdl.winsz=e.resize.w<e.resize.h?e.resize.w:e.resize.h;
-      sdl.xmargin=(e.resize.w-sdl.winsz)/2;
-      sdl.ymargin=(e.resize.h-sdl.winsz)/2;
-
-      SDL_FreeSurface(sdl.s);
-      sdl.s=SDL_SetVideoMode(e.resize.w,e.resize.h,0,SDL_RESIZABLE);
-      SDL_FreeYUVOverlay(sdl.o);
-      sdl.o=SDL_CreateYUVOverlay(256,256,SDL_YUY2_OVERLAY,sdl.s);
-      SDL_WM_SetCaption("IBNIZ","IBNIZ");
-
-      showyuv();
+      sdl.winsz=e.window.data1<e.window.data2?e.window.data1:e.window.data2;
+      sdl.xmargin=(e.window.data1-sdl.winsz)/2;
+      sdl.ymargin=(e.window.data2-sdl.winsz)/2;
+      // showyuv();
     }
-#ifdef X11
-    else if(e.type==SDL_SYSWMEVENT)
-    {
-      clipboard_handlesysreq(&e);
-    }
-#endif
   }
 }
 
@@ -1151,10 +1157,18 @@ int main(int argc,char**argv)
   SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO);
 
   sdl.winsz=512;
-  sdl.s=SDL_SetVideoMode(sdl.winsz,sdl.winsz,0,SDL_RESIZABLE);
-  sdl.o=SDL_CreateYUVOverlay(256,256,SDL_YUY2_OVERLAY,sdl.s);
-  SDL_WM_SetCaption("IBNIZ", "IBNIZ");
- 
+  sdl.w = SDL_CreateWindow("IBNIZ",
+                    SDL_WINDOWPOS_UNDEFINED,
+                    SDL_WINDOWPOS_UNDEFINED,
+                    sdl.winsz, sdl.winsz, SDL_WINDOW_RESIZABLE);
+  sdl.r = SDL_CreateRenderer(sdl.w,
+                    -1,SDL_RENDERER_PRESENTVSYNC);
+  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2" /*linear sampling*/);
+  sdl.t = SDL_CreateTexture(sdl.r,
+                    SDL_PIXELFORMAT_YUY2,
+                    SDL_TEXTUREACCESS_STREAMING,
+                    WIDTH, WIDTH);
+  
   {SDL_AudioSpec as;
    as.freq=44100;
    as.format=AUDIO_S16;

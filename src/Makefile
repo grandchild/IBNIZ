@@ -1,7 +1,13 @@
 # For normal builds; remove -DX11 -lX11 from flags if you don't have X11
 CC=gcc
 EXE=ibniz
-FLAGS=`sdl-config --libs --cflags` -DX11 -lX11
+FLAGS=`sdl2-config --libs --cflags`
+
+OPT=-Os
+#OPT=-Og
+OPT_VM=-O3
+# OPT_VM=-Og -g
+
 all: ibniz
 
 # For win32 builds using mingw32 (you'll probably need to modify these)
@@ -26,19 +32,19 @@ winexe: clean
 #	cat ui_sdl.c vm_slow.c clipboard.c > whole.c
 
 $(EXE): ui_sdl.o vm_slow.o clipboard.o compiler.o
-	$(CC) -Os -s ui_sdl.o vm_slow.o clipboard.o compiler.o -o $(EXE) $(FLAGS) -lm
+	$(CC) $(OPT) ui_sdl.o vm_slow.o clipboard.o compiler.o -o $(EXE) $(FLAGS) -lm
 
 ui_sdl.o: ui_sdl.c ibniz.h font.i vm.h texts.i vm.h
-	$(CC) -c -Os ui_sdl.c -o ui_sdl.o $(FLAGS)
+	$(CC) -c $(OPT) ui_sdl.c -o ui_sdl.o $(FLAGS)
 
 clipboard.o: clipboard.c ibniz.h
-	$(CC) -c -Os clipboard.c -o clipboard.o $(FLAGS)
+	$(CC) -c $(OPT) clipboard.c -o clipboard.o $(FLAGS)
 
 compiler.o: compiler.c ibniz.h vm.h
-	$(CC) -c -Os compiler.c -o compiler.o $(FLAGS)
+	$(CC) -c $(OPT) compiler.c -o compiler.o $(FLAGS)
 
 vm_slow.o: vm_slow.c ibniz.h vm.h
-	$(CC) -c -O3 vm_slow.c -o vm_slow.o
+	$(CC) -c $(OPT_VM) vm_slow.c -o vm_slow.o
 
 font.i: font.pl
 	perl font.pl > font.i
@@ -50,4 +56,4 @@ vmtest: vm_test.c vm_slow.c
 	gcc vm_test.c vm_slow.o -o vmtest -lm
 
 ibniz2c: ibniz2c.c compiler.c gen_c.c
-	gcc -DIBNIZ2C -Os compiler.c ibniz2c.c -o ibniz2c -lm
+	gcc -DIBNIZ2C $(OPT) compiler.c ibniz2c.c -o ibniz2c -lm
