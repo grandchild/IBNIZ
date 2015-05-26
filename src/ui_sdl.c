@@ -810,11 +810,20 @@ static int vm_thread(void* data)
 {
   while(!vm.stopped)
   {
-    if(vm.codechanged) {
+    if(vm.codechanged) 
+    {
       vm_compile(ed_getprogbuf());
+      if(ui.audio_off)
+      {
+        ui.audio_off=0;
+        int c = vm_run();
+        pauseaudio(0);
+      }
+      vm.codechanged=0;
     }
     int c = vm_run();
     ui.cyclecounter+=c;
+    checkmediaformats();
   }
 }
 
@@ -900,8 +909,8 @@ void interactivemode(char*codetoload)
   /* here, do your time-consuming job */
   sdl.thread = SDL_CreateThread(vm_thread, "Ibniz VM", (void*)NULL);
   SDL_DetachThread(sdl.thread);
-  debug.thread = SDL_CreateThread(timing_thread, "Ibniz debug: timing", (void*)NULL);
-  SDL_DetachThread(debug.thread);
+  // debug.thread = SDL_CreateThread(timing_thread, "Ibniz debug: timing", (void*)NULL);
+  // SDL_DetachThread(debug.thread);
   for(;;)
   {
     debug.begin = clock();
@@ -955,27 +964,11 @@ void interactivemode(char*codetoload)
         pollplaybackevent(&e);
       if(e.type==0/*SDL_NOEVENT*/)
       {
-        if(vm.codechanged) 
-        {
-          vm_compile(ed_getprogbuf());
-          if(ui.audio_off)
-          {
-            ui.audio_off=0;
-            int c = vm_run();
-            pauseaudio(0);
-          }
-          vm.codechanged=0;
-        }
-        {
-          // int c = vm_run();
-          // ui.cyclecounter+=c;
-        }
         if(ui.opt_nonrealtime)
         {
           dumper.subframe++;
           if(!(dumper.subframe&4095)) nrtframestep();
         }
-        checkmediaformats();
         scheduler_check();
         continue;
       }
