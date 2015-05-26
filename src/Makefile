@@ -32,7 +32,7 @@ winexe: clean
 #	cat ui_sdl.c vm_slow.c clipboard.c > whole.c
 
 $(EXE): ui_sdl.o vm_slow.o clipboard.o compiler.o
-	$(CC) $(OPT) ui_sdl.o vm_slow.o clipboard.o compiler.o -o $(EXE) $(FLAGS) -lm
+	$(CC) $(OPT) ui_sdl.o vm_slow.o clipboard.o compiler.o -o $(EXE) $(FLAGS) -lm -lrt
 
 ui_sdl.o: ui_sdl.c ibniz.h font.i vm.h texts.i vm.h
 	$(CC) -c $(OPT) ui_sdl.c -o ui_sdl.o $(FLAGS)

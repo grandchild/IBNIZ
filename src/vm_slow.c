@@ -35,10 +35,19 @@ void initstatecounters()
 
 void vm_compile(char*src)
 {
+  if(SDL_LockMutex(vm.exec_lock)!=0)
+  {
+    printf("Couldn't get lock for vm_compile().\n");
+    return;
+  }
+  printf("vm_compile()...");
+  
   /* no other compilation in vm_slow! */
   compiler_parse(src);
   vm.specialcontextstep=1;
 //  initstatecounters();
+  SDL_UnlockMutex(vm.exec_lock);
+  printf(" done.\n");
 }
 
 void vm_init()
@@ -74,6 +83,10 @@ void vm_init()
   vm.userinput=0;
   vm.stopped=0;
   vm.audiotime=vm.videotime=gettimevalue();
+  
+  /* mutex */
+  
+  vm.exec_lock=SDL_CreateMutex();
   
   initstatecounters();
 
@@ -235,6 +248,11 @@ int vm_run()
 
   pmv_setfunc();
 
+  if(SDL_LockMutex(vm.exec_lock)!=0)
+  {
+    printf("Couldn't get lock for vm_run().\n");
+    return 0;
+  }
   for(cycles=CYCLESPERRUN;cycles;cycles--)
   {
     char op=*vm.ip++;
@@ -558,5 +576,6 @@ int vm_run()
         break;
     }
   }
+  SDL_UnlockMutex(vm.exec_lock);
   return CYCLESPERRUN;
 }
