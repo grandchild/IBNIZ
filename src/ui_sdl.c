@@ -2,7 +2,7 @@
 #include <SDL2.h>
 #else
 #include <SDL2/SDL.h>
-// #include <SDL2/SDL_mutex.h>
+#include <SDL2/SDL_mutex.h>
 #endif
 #define IBNIZ_MAIN
 #include "ibniz.h"
@@ -805,6 +805,22 @@ char*ed_getprogbuf()
      else return ed_parallel.textbuffer;
 }
 
+char ed_srclock()
+{
+  if(SDL_LockMutex(vm.srclock)!=0)
+  {
+    DEBUG("Couldn't get lock for editor.\n");
+    return 1;
+  }
+  return 0;
+}
+
+void ed_srcunlock()
+{
+  SDL_UnlockMutex(vm.srclock);
+}
+
+
 /*** main loop etc ***/
 static int vm_thread(void* data)
 {
@@ -1037,13 +1053,17 @@ void interactivemode(char*codetoload)
         {
           if(sym==SDLK_UP)
           {
+            ed_srclock();
             ed_increment(ed.cursor);
+            ed_srcunlock();
             vm.codechanged=1;
           }
           else
           if(sym==SDLK_DOWN)
           {
+            ed_srclock();
             ed_decrement(ed.cursor);
+            ed_srcunlock();
             vm.codechanged=1;
           }
           else
@@ -1074,12 +1094,18 @@ void interactivemode(char*codetoload)
           else
           if(sym=='v')
           {
+            ed_srclock();
             ed_paste();
+            ed_srcunlock();
+            vm.codechanged=1;
           }
           else
           if(sym=='x')
           {
+            ed_srclock();
             ed_cut();
+            ed_srcunlock();
+            vm.codechanged=1;
           }
           else
           if(sym=='a')
@@ -1121,13 +1147,17 @@ void interactivemode(char*codetoload)
         else
         if(sym==SDLK_BACKSPACE)
         {
+          ed_srclock();
           ed_backspace(-1);
+          ed_srcunlock();
           vm.codechanged=1;
         }
         else
         if(sym==SDLK_DELETE)
         {
+          ed_srclock();
           ed_backspace(0);
+          ed_srcunlock();
           vm.codechanged=1;
         }
         else
@@ -1138,7 +1168,9 @@ void interactivemode(char*codetoload)
         else
         if(sym==SDLK_RETURN || sym==SDLK_RETURN2)
         {
+          ed_srclock();
           ed_char(10);
+          ed_srcunlock();
         }
       }
     }
@@ -1176,7 +1208,7 @@ void interactivemode(char*codetoload)
       sdl.ymargin=(e.window.data2-sdl.winsz)/2;
       // showyuv();
     }
-    printf("%s: %f\n", lookup_eventtype(e.type), (double)(debug.end - debug.begin) / CLOCKS_PER_SEC);
+    // printf("%s: %f\n", lookup_eventtype(e.type), (double)(debug.end - debug.begin) / CLOCKS_PER_SEC);
     debug.etype = e.type;
     debug.end = clock();
     debug.evaluated = 0;

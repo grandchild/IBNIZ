@@ -1,6 +1,6 @@
 #ifndef VM_H
 
-#include "SDL2/SDL_mutex.h"
+#include <SDL2/SDL_mutex.h>
 
 #define MEMSIZE 0x100000
 #define MAXCODESIZE 4096
@@ -66,10 +66,9 @@ GLOBAL struct
 
   char parsed_code[MAXCODESIZE];
   uint32_t parsed_hints[MAXCODESIZE];
-  
-  /* threading */
-  SDL_mutex* exec_lock;
   char codechanged;
+  SDL_mutex* srclock;
+
 } vm;
 
 #endif
