@@ -1,5 +1,6 @@
 #include "ibniz.h"
 #include <math.h>
+#include <stdio.h>
 
 #if defined(X86) || defined(AMD64)
 #  include "gen.h"
@@ -192,37 +193,10 @@ void compiler_parse(char*src)
 #define GSV_REG 0
 #define GSV_ABS 1
 #define GSV_JMP 2
-#define GENSTACKDEPTH (NUMREGS*3)
 
 #define IVAR_T 0
 #define IVAR_Y 1
 #define IVAR_X 2
-
-typedef struct
-{
-  char type;
-  uint32_t val;
-} gsv_t;
-
-struct {
-  int gsp;
-  gsv_t gs[GENSTACKDEPTH];
-  
-  int grsp;
-  gsv_t grs[GENSTACKDEPTH];
-
-  uint32_t usedregs;
-
-  // memory-register mapping as well
-  // flushrstack();
-  // flushmemory();
-
-  uint8_t*co0;
-  uint8_t*co;
-  int srcidx;
-  // structure for label-address mapping
-  // (store labels as co0-relative!)
-} gen;
 
 void freereg(int reg)
 {
@@ -389,7 +363,7 @@ flushstack()
 
 /* stack ops */
 
-gen_pop()
+int gen_pop()
 {
   if(gen.gsp>=0)
     gen.gsp--;
@@ -397,7 +371,7 @@ gen_pop()
     gen_pop_noreg();
 }
 
-gen_dup()
+int gen_dup()
 {
   if(gen.gsp>=0)
   {
@@ -410,7 +384,7 @@ gen_dup()
   }
 }
 
-gen_swap()
+int gen_swap()
 {
   gsv_t v1,v0;
   popsv(&v0);
@@ -419,7 +393,7 @@ gen_swap()
   growstack(v1.type,v1.val);
 }
 
-gen_trirot()
+int gen_trirot()
 {
   gsv_t v2,v1,v0;
   popsv(&v0);
@@ -430,17 +404,17 @@ gen_trirot()
   growstack(v2.type,v2.val);
 }
 
-gen_pick()
+int gen_pick()
 {
 }
 
-gen_bury()
+int gen_bury()
 {
 }
 
 /* loadimm */
 
-gen_loadimm(int val)
+int gen_loadimm(int val)
 {
   growstack(GSV_ABS,val);
 }
@@ -497,7 +471,7 @@ void unop_getsv(gsv_t*t,gsv_t*s)
 }
 
 #define BINOP_C(name,immimm) \
-gen_##name () \
+int gen_##name () \
 { \
   gsv_t t,s1,s0; \
   binop_getsv(&t,&s1,&s0,1); \
@@ -517,7 +491,7 @@ gen_##name () \
 }
 
 #define BINOP_NC(name,immimm) \
-gen_##name () \
+int gen_##name () \
 { \
   gsv_t t,s1,s0; \
   binop_getsv(&t,&s1,&s0,0); \
@@ -557,7 +531,7 @@ BINOP_NC(shl,IBNIZ_SHL(i1,i0))
 BINOP_NC(atan2,IBNIZ_ATAN2(i1,i0))
 
 #define UNOP(name,imm) \
-gen_##name () \
+int gen_##name () \
 { \
   gsv_t t,s; \
   unop_getsv(&t,&s); \
@@ -599,7 +573,7 @@ UNOP(iszero,IBNIZ_ISZERO(i));
 // A { xxx }
 */
 
-gen_if(int skipto)
+int gen_if(int skipto)
 {
   gsv_t cond;
   popsv(&cond);
@@ -613,20 +587,20 @@ gen_if(int skipto)
   }
 }
 
-gen_else(int skipto)
+int gen_else(int skipto)
 {
   flushstack();
   gen_jmp_lab(skipto);
   gen_label(gen.srcidx+1);
 }
 
-gen_endif()
+int gen_endif()
 {
   flushstack();
   gen_label(gen.srcidx+1);
 }
 
-gen_load()
+int gen_load()
 {
   int r;
   gsv_t address;
@@ -639,7 +613,7 @@ gen_load()
     gen_load_reg_imm(r,address.val);
 }
 
-gen_store()
+int gen_store()
 {
   int r;
   gsv_t address;
@@ -661,7 +635,7 @@ gen_store()
   }
 }
 
-gen_do()
+int gen_do()
 {
   flushstack();
   gen_rpush_lab(gen.srcidx+1);
@@ -671,13 +645,13 @@ gen_do()
   // analyzer will unroll small immediate loops
 }
 
-gen_times()
+int gen_times()
 {
   gen_rpush();
   gen_do();
 }
 
-gen_while()
+int gen_while()
 {
   gsv_t cond;
   popsv(&cond);
@@ -699,7 +673,7 @@ gen_while()
   }
 }
 
-gen_loop()
+int gen_loop()
 {
   /*
   in c:
@@ -711,7 +685,7 @@ gen_loop()
   */
 }
 
-gen_rpush()
+int gen_rpush()
 {
   gsv_t v;
   popsv(&v);
@@ -721,7 +695,7 @@ gen_rpush()
     gen_rpush_imm(v.val);
 }
 
-gen_defsub()
+int gen_defsub()
 {
   /*
   in c:
@@ -732,7 +706,7 @@ gen_defsub()
   */
 }
 
-gen_return()
+int gen_return()
 {
   /*
   flushstack();
@@ -742,14 +716,14 @@ gen_return()
   */
 }
 
-gen_rpop()
+int gen_rpop()
 {
   int r=allocreg();
   growstack(GSV_REG,r);
   gen_rpop_reg(r);
 }
 
-gen_whereami()
+int gen_whereami()
 {
   // todo should also update ivars according to sp
   int t=allocreg();
@@ -763,7 +737,7 @@ gen_whereami()
   gen_mov_reg_ivar(x,IVAR_X);
 }
 
-gen_tyxloop_init()
+int gen_tyxloop_init()
 {
   gen.gsp=-1;
   // store treg0 yreg0 xreg0 to ensure loopability
@@ -785,7 +759,7 @@ gen_tyxloop_init()
 
 // real whereami can use any regs
 
-gen_tyxloop_iterator()
+int gen_tyxloop_iterator()
 {
   int t,y,x;
   flushstack();
@@ -804,7 +778,7 @@ gen_tyxloop_iterator()
 }
 
 
-gen_finish()
+int gen_finish()
 {
   flushstack();
   //gen_tyxloop_iterator();

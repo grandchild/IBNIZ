@@ -62,7 +62,7 @@ printf("    for(y=-0xFFFF;y<0x10000;y+=0x200)\n"
 printf("/******************* generated code begins *************************/\n");
 }
 
-void* gen_nativefinish()
+void gen_nativefinish()
 {
   printf(
 "/********************** generated code ends ************************/\n"
@@ -84,8 +84,6 @@ void* gen_nativefinish()
 "  }\n"
 "  SDL_Quit();\n"
 "}\n");
-
-  return NULL;
 }
 
 void gen_nativerun(void*a)

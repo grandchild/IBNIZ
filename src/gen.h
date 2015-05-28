@@ -4,7 +4,7 @@
 /*** functions implemented for compilation targets: ***/
 
 void gen_nativeinit();
-void* gen_nativefinish();
+void gen_nativefinish();
 void gen_nativerun(void*a);
 
 /* reg moves */
@@ -112,5 +112,35 @@ void gen_nativeret();
 
 void gen_nativeterminate();
 void gen_nativeuserin();
+
+#define NUMREGS 14
+
+#define GENSTACKDEPTH (NUMREGS*3)
+typedef struct
+{
+  char type;
+  uint32_t val;
+} gsv_t;
+
+struct {
+  int gsp;
+  gsv_t gs[GENSTACKDEPTH];
+  
+  int grsp;
+  gsv_t grs[GENSTACKDEPTH];
+
+  uint32_t usedregs;
+
+  // memory-register mapping as well
+  // flushrstack();
+  // flushmemory();
+
+  uint8_t*co0;
+  uint8_t*co;
+  int srcidx;
+  // structure for label-address mapping
+  // (store labels as co0-relative!)
+} gen;
+
 
 #endif

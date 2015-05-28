@@ -11,7 +11,7 @@ all: ibniz
 #all: ibniz.exe
 
 clean:
-	rm -f *.o *~ ibniz vmtest ibniz.exe whole.c
+	rm -f *.o *~ ibniz vmtest ibniz.exe whole.c ibniz2c ibniz2x86
 
 package: clean
 	cd .. && cp -R src ibniz-1.18 && tar czf ibniz-1.18.tar.gz ibniz-1.18
@@ -51,3 +51,6 @@ vmtest: vm_test.c vm_slow.c
 
 ibniz2c: ibniz2c.c compiler.c gen_c.c
 	gcc -DIBNIZ2C -Os compiler.c ibniz2c.c -o ibniz2c -lm
+
+ibniz2x86: ibniz2x86.c compiler.c gen_x86.c
+	gcc -DX86 -Os compiler.c ibniz2x86.c -o ibniz2x86 -lm -ljit
