@@ -35,16 +35,16 @@ void initstatecounters()
 
 void vm_compile(char*src)
 {
-  if(SDL_LockMutex(vm.srclock)!=0)
-  {
-    printf("Couldn't get lock for vm_compile().\n");
-    return;
-  }
+  // if(SDL_LockMutex(vm.srclock)!=0)
+  // {
+  //   printf("Couldn't get lock for vm_compile().\n");
+  //   return;
+  // }
   /* no other compilation in vm_slow! */
   compiler_parse(src);
   vm.specialcontextstep=1;
 //  initstatecounters();
-  SDL_UnlockMutex(vm.srclock);
+  // SDL_UnlockMutex(vm.srclock);
 }
 
 void vm_init()
@@ -83,7 +83,7 @@ void vm_init()
   
   /* mutex */
 
-  vm.srclock=SDL_CreateMutex();
+  // vm.srclock=SDL_CreateMutex();
   
   initstatecounters();
 

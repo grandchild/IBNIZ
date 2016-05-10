@@ -8,7 +8,7 @@ OPT=-Os
 OPT_VM=-O3
 # OPT_VM=-Og -g
 
-all: ibniz
+all: $(EXE)
 
 # For win32 builds using mingw32 (you'll probably need to modify these)
 #CC=i586-mingw32msvc-gcc
@@ -37,8 +37,14 @@ $(EXE): ui_sdl.o vm_slow.o clipboard.o compiler.o
 ui_sdl.o: ui_sdl.c ibniz.h font.i vm.h texts.i vm.h
 	$(CC) -c $(OPT) ui_sdl.c -o ui_sdl.o $(FLAGS)
 
+$(EXE)fb: ui_fb.o vm_slow.o clipboard.o compiler.o
+	$(CC) $(OPT) ui_fb.o vm_slow.o clipboard.o compiler.o -o $(EXE)fb -lm -lrt
+
+ui_fb.o: ui_fb.c ibniz.h font.i vm.h texts.i vm.h
+	$(CC) -c $(OPT) ui_fb.c -o ui_fb.o
+
 clipboard.o: clipboard.c ibniz.h
-	$(CC) -c $(OPT) clipboard.c -o clipboard.o $(FLAGS)
+	$(CC) -c $(OPT) clipboard.c -o clipboard.o $(FLAGS) -DFB
 
 compiler.o: compiler.c ibniz.h vm.h
 	$(CC) -c $(OPT) compiler.c -o compiler.o $(FLAGS)

@@ -44,7 +44,8 @@ void clipboard_store()
   CloseClipboard();
 }
 
-#elif defined(X11)
+
+#elif defined(X11) && !defined(FB)
 #include <SDL2/SDL.h>
 
 void clipboard_load()
